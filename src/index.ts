@@ -103,7 +103,7 @@ new Elysia()
         })
     )
     .use(healthRoutes)
-    .use(proxyRoutes)    // Make sure proxy routes come before management routes
+    .use(proxyRoutes)
     .use(managementRoutes)
     .get('/', () => ({
         message: 'ByteProxy API',
@@ -142,13 +142,15 @@ new Elysia()
 
     .listen(config.port)
 
-logger.info(`ByteProxy server started on port ${config.port}`, {
-    port: config.port,
-    services: Object.keys(config.services),
-    cors: config.cors.enabled,
-    logging: config.logging.enabled
+logger.info(`ByteProxy server started`, {
+    url: `http://localhost:${config.port}`,
+    docs: `http://localhost:${config.port}/docs`,
+    health: `http://localhost:${config.port}/health`,
+    cors: config.cors.enabled ? `enabled [${config.cors.origins.join(', ')}]` : 'disabled',
+    logging: config.logging.enabled ? config.logging.level : 'disabled',
+    tlsVerification: config.network.strictTLS ? 'strict' : 'NOT strict',
+    retryAttempts: config.network.retryAttempts,
+    timeout: `${config.network.timeout}ms`,
+    proxyAuth: `${config.security.requireAuthForProxy}${!config.security.proxyApiKey ? ' (NO KEY SET)' : ''}`,
+    managementAuth: `${config.security.requireAuthForManagement}${!config.security.managementApiKey ? ' (NO KEY SET)' : ''}`
 })
-
-console.log(`🚀 ByteProxy server running at http://localhost:${config.port}`)
-console.log(`📚 API Documentation: http://localhost:${config.port}/docs`)
-console.log(`💚 Health Check: http://localhost:${config.port}/health`)

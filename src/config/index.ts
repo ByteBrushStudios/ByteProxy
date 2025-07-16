@@ -117,18 +117,6 @@ export const getConfig = (): ProxyConfig => {
     // Store the config in cache
     cachedConfig = config;
 
-    // Log config only once during initialization
-    console.log(`[CONFIG] Loaded ByteProxy config:
-    ├── Port: ${config.port}
-    ├── CORS: ${config.cors.enabled ? `enabled [${config.cors.origins.join(', ')}]` : 'disabled'}
-    ├── Logging: ${config.logging.enabled ? config.logging.level : 'disabled'}
-    ├── TLS verification: ${config.network.strictTLS ? 'strict' : 'NOT strict'} 
-    ├── Retry attempts: ${config.network.retryAttempts}
-    ├── Timeout: ${config.network.timeout}ms
-    ├── Proxy Auth Required: ${config.security.requireAuthForProxy} ${!config.security.proxyApiKey ? '(NO KEY SET)' : ''}
-    ├── Management Auth Required: ${config.security.requireAuthForManagement} ${!config.security.managementApiKey ? '(NO KEY SET)' : ''}
-    `);
-
     return config;
 };
 
