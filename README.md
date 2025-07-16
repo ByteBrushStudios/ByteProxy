@@ -21,27 +21,6 @@ A powerful, extensible web proxy built with [Elysia](https://elysiajs.com/) for 
 - **Swagger Docs:** Interactive API docs at [`/docs`](http://localhost:3420/docs)
 - **TypeScript:** Fully typed for reliability
 
-> **Note:**  
-> Authentication is currently disabled due to ongoing fixes.  
-> All proxy and management endpoints are open by default.
-
----
-
-## ⚡ Quick Start
-
-```bash
-git clone https://github.com/ByteBrushStudios/ByteProxy.git
-cd ByteProxy
-bun install
-cp .env.example .env.local
-# Edit .env.local with your API tokens
-bun run dev
-```
-
-Access the proxy at [http://localhost:3420](http://localhost:3420) and explore the API documentation at [http://localhost:3420/docs](http://localhost:3420/docs).
-
-Check out our [documentation website](https://proxy.bytebrush.dev) for complete setup guides, usage examples, and API references.
-
 ---
 
 ## 📚 Documentation
@@ -49,43 +28,16 @@ Check out our [documentation website](https://proxy.bytebrush.dev) for complete 
 - **API Reference & Usage:**  
   Interactive Swagger documentation at [`/docs`](http://localhost:3420/docs)
 - **Configuration:**  
-  See [`src/config/index.ts`](src/config/index.ts) for service configuration options
+  See [`src/config/index.ts`](src/config/index.ts) for service configuration options and our [Configuration Guide](https://proxy.bytebrush.dev/config)
 - **Troubleshooting:**  
-  Use [`/manage/diagnostics`](http://localhost:3420/manage/diagnostics) for system diagnostics
-- **Authentication:**  
-  API key management at [`/manage/key-debug`](http://localhost:3420/manage/key-debug)
-- **Health Checks:**  
-  Server status at [`/health`](http://localhost:3420/health) and [`/status`](http://localhost:3420/status)
-
-### Environment Variables
-
-Create a `.env.local` file with the following options:
-
-```
-# Server Configuration
-PORT=3420
-CORS_ENABLED=true
-CORS_ORIGINS=*
-LOG_LEVEL=info
-
-# Security Settings
-REQUIRE_AUTH_FOR_PROXY=false
-REQUIRE_AUTH_FOR_MANAGEMENT=false
-PROXY_API_KEY=your-proxy-key
-MANAGEMENT_API_KEY=your-management-key
-
-# Service API Tokens
-DISCORD_BOT_TOKEN=your-discord-token
-GITHUB_TOKEN=your-github-token
-
-# Network Settings
-NETWORK_TIMEOUT=30000
-NETWORK_RETRIES=2
-STRICT_TLS=true
-
-# Update Settings
-SKIP_UPDATE_CHECK=false
-```
+  Use [`/manage/diagnostics`](http://localhost:3420/manage/diagnostics) for system diagnostics or see our [Troubleshooting Guide](https://proxy.bytebrush.dev/troubleshooting)
+- **Full Documentation:**  
+  Visit our [Documentation Website](https://proxy.bytebrush.dev) for comprehensive guides:
+    - [Getting Started](https://proxy.bytebrush.dev/getting-started)
+    - [Usage Examples](https://proxy.bytebrush.dev/usage)
+    - [Self-Hosting Guide](https://proxy.bytebrush.dev/self-host)
+    - [API Reference](https://proxy.bytebrush.dev/api)
+    - [Security & Authentication](https://proxy.bytebrush.dev/auth)
 
 ---
 
