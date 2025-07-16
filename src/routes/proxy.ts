@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { proxyService } from '../services/proxy'
-import { getServiceConfig, listServices } from '../config'
+import { getConfig, getServiceConfig, listServices } from '../config'
 import { logger } from '../utils/logger'
 import { proxyAuthMiddleware } from '../middleware/auth'
 
@@ -208,11 +208,102 @@ export const proxyRoutes = new Elysia({ prefix: '/proxy' })
         }
     })
 
+    // Add a debug authentication endpoint
+    .get('/auth-debug', ({ request }) => {
+        const authHeader = request.headers.get('authorization')
+        const apiKeyHeader = request.headers.get('x-api-key')
+        const url = new URL(request.url)
+        const queryKey = url.searchParams.get('api_key')
+
+        return {
+            status: 'success',
+            message: 'Authentication successful',
+            timestamp: new Date().toISOString(),
+            authMethod: {
+                bearer: authHeader?.startsWith('Bearer ') ? 'provided' : 'not provided',
+                xApiKey: apiKeyHeader ? 'provided' : 'not provided',
+                queryParam: queryKey ? 'provided' : 'not provided',
+            },
+            help: 'If you see this message, your authentication is working correctly.'
+        }
+    }, {
+        detail: {
+            summary: 'Debug API authentication',
+            description: 'Use this endpoint to verify your authentication is working',
+            tags: ['Proxy', 'Debug']
+        }
+    })
+
     // Add a basic authentication test route
     .get('/auth-test', () => {
         return {
             status: 'success',
             message: 'Authentication successful',
             timestamp: new Date().toISOString()
+        }
+    })
+
+    // Add key debug endpoint to help identify the correct key to use
+    .get('/key-debug', () => {
+        const config = getConfig();
+        const proxyKeyConfigured = !!config.security.proxyApiKey;
+        const managementKeyConfigured = !!config.security.managementApiKey;
+
+        return {
+            message: 'API Key Debug Information',
+            note: 'This endpoint helps identify which key you should use',
+            authStatus: {
+                proxyAuthRequired: config.security.requireAuthForProxy,
+                managementAuthRequired: config.security.requireAuthForManagement,
+                proxyKeyConfigured,
+                managementKeyConfigured,
+                setupStatus: {
+                    proxy: config.security.requireAuthForProxy && !proxyKeyConfigured
+                        ? 'ERROR: Auth required but no key set'
+                        : 'Valid configuration',
+                    management: config.security.requireAuthForManagement && !managementKeyConfigured
+                        ? 'ERROR: Auth required but no key set'
+                        : 'Valid configuration'
+                }
+            },
+            keyInfo: {
+                proxyKeyFormat: config.security.proxyApiKey
+                    ? `${config.security.proxyApiKey.substring(0, 4)}...${config.security.proxyApiKey.substring(config.security.proxyApiKey.length - 4)}`
+                    : 'Not configured',
+                managementKeyFormat: config.security.managementApiKey
+                    ? `${config.security.managementApiKey.substring(0, 4)}...${config.security.managementApiKey.substring(config.security.managementApiKey.length - 4)}`
+                    : 'Not configured',
+                proxyKeyLength: config.security.proxyApiKey?.length || 0,
+                managementKeyLength: config.security.managementApiKey?.length || 0,
+                keyTypes: {
+                    proxy: 'Required for /proxy/* routes',
+                    management: 'Required for /manage/* routes'
+                }
+            },
+            howToAuthenticate: [
+                'Add header: "Authorization: Bearer YOUR_API_KEY"',
+                'Add header: "x-api-key: YOUR_API_KEY"',
+                'Add query param: "?api_key=YOUR_API_KEY"'
+            ],
+            troubleshooting: {
+                noKeyProvided: 'If you received "No authentication provided", you need to add your API key using one of the methods above',
+                invalidKey: 'If you received "Valid API key required", your provided key doesn\'t match the one in your environment',
+                envSetup: 'Make sure your .env.local file has the required API keys set',
+                envExample: `
+# Authentication keys
+PROXY_API_KEY=your_proxy_key_here
+MANAGEMENT_API_KEY=your_management_key_here
+
+# Authentication requirements (set to "true" to enable)
+REQUIRE_AUTH_FOR_PROXY=true
+REQUIRE_AUTH_FOR_MANAGEMENT=true
+                `
+            }
+        }
+    }, {
+        detail: {
+            summary: 'Debug API key information',
+            description: 'Helper endpoint to determine which API key to use',
+            tags: ['Proxy', 'Debug']
         }
     })

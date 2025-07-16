@@ -8,6 +8,7 @@ import { managementRoutes } from './routes/management'
 import { logger } from './utils/logger'
 import { UnderPressure } from './services/up'
 
+// Initialize config once at startup
 const config = getConfig()
 
 // Initialize UnderPressure with desired options
@@ -102,7 +103,7 @@ new Elysia()
         })
     )
     .use(healthRoutes)
-    .use(proxyRoutes)
+    .use(proxyRoutes)    // Make sure proxy routes come before management routes
     .use(managementRoutes)
     .get('/', () => ({
         message: 'ByteProxy API',

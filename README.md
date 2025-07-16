@@ -1,10 +1,10 @@
 # ByteProxy
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/ByteBrushStudios/Proxy/actions)
+[![Build Status](https://github.com/ByteBrushStudios/Proxy/actions/workflows/build.yml/badge.svg)](https://github.com/ByteBrushStudios/Proxy/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/types-TypeScript-blue)](https://www.typescriptlang.org/)
 [![Version](https://img.shields.io/badge/version-0.1.0-orange)](https://github.com/ByteBrushStudios/Proxy/releases)
-[![Discord](https://img.shields.io/discord/123456789012345678?label=Discord&logo=discord)](https://discord.gg/Vv2bdC44Ge)
+[![Discord](https://img.shields.io/discord/957420716142252062?label=Discord&logo=discord)](https://discord.gg/Vv2bdC44Ge)
 
 A powerful, extensible web proxy built with [Elysia](https://elysiajs.com/) for seamless API forwarding to Discord, GitHub, and more. Features built-in rate limiting, dynamic service management, robust error handling, and interactive API docs.
 
@@ -38,7 +38,7 @@ cp .env.example .env.local
 bun run dev
 ```
 
-Visit [`http://localhost:3420/docs`](http://localhost:3420/docs) for interactive API documentation.
+Check out our [docs](https://proxy.bytebrush.dev) for Setup, Usage Guides and Documentation.
 
 ---
 
@@ -68,7 +68,7 @@ Visit [`http://localhost:3420/docs`](http://localhost:3420/docs) for interactive
 
 - [Create an issue](https://github.com/ByteBrushStudios/Proxy/issues)
 - [Join our Discord](https://discord.gg/Vv2bdC44Ge)
-- [API Docs](http://localhost:3420/docs)
+- [Documentation](https://proxy.bytebrush.dev)
 
 ---
 

@@ -72,3 +72,28 @@ export const healthRoutes = new Elysia()
             tags: ['Health']
         }
     })
+
+    .get('/auth-status', ({ request }) => {
+        const config = getConfig()
+        const url = new URL(request.url)
+        const path = url.pathname
+
+        return {
+            path,
+            authConfig: {
+                proxyAuthRequired: config.security.requireAuthForProxy,
+                managementAuthRequired: config.security.requireAuthForManagement,
+                proxyKeyConfigured: !!config.security.proxyApiKey,
+                managementKeyConfigured: !!config.security.managementApiKey
+            },
+            requestInfo: {
+                method: request.method,
+                hasAuthHeader: !!request.headers.get('authorization'),
+                hasApiKeyHeader: !!request.headers.get('x-api-key'),
+                hasQueryKey: !!url.searchParams.get('api_key'),
+                fullUrl: request.url,
+                pathSegments: path.split('/').filter(Boolean)
+            },
+            help: 'This endpoint helps diagnose authentication issues'
+        }
+    })

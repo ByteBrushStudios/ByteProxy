@@ -2,29 +2,22 @@ import { Elysia } from 'elysia'
 import { getConfig } from '../config'
 import { logger } from '../utils/logger'
 
-/**
- * Authentication middleware factory for API keys
- */
 export function createAuthMiddleware(keyType: 'proxy' | 'management') {
-    // Always reload config to get latest env vars
     const config = getConfig()
 
-    // Read API key and auth requirement directly from process.env for reliability
     const apiKey = keyType === 'proxy'
-        ? process.env.PROXY_API_KEY
-        : process.env.MANAGEMENT_API_KEY
+        ? config.security.proxyApiKey
+        : config.security.managementApiKey
 
     const isRequired = keyType === 'proxy'
-        ? process.env.REQUIRE_AUTH_FOR_PROXY === 'true'
-        : process.env.REQUIRE_AUTH_FOR_MANAGEMENT === 'true'
+        ? config.security.requireAuthForProxy
+        : config.security.requireAuthForManagement
 
-    // If auth is not required, return a pass-through middleware
     if (!isRequired) {
         logger.info(`${keyType} authentication is disabled by configuration`)
         return new Elysia()
     }
 
-    // Log warning if auth is required but no API key is set
     if (!apiKey) {
         logger.warn(`${keyType} authentication is REQUIRED but no API key is configured!`, {
             keyType,
@@ -32,62 +25,97 @@ export function createAuthMiddleware(keyType: 'proxy' | 'management') {
         })
     }
 
-    // Return middleware that validates the API key
-    return new Elysia()
-        .onRequest(({ request, set }) => {
-            // If no API key is configured but auth is required, fail open
-            if (!apiKey) {
-                logger.warn(`Auth bypassed: ${keyType} API key not configured`, {
-                    path: new URL(request.url).pathname
-                })
-                return
-            }
+    return new Elysia().onRequest(({ request, set }) => {
+        const url = new URL(request.url)
+        const path = url.pathname
 
-            try {
-                // Extract auth info
-                const authHeader = request.headers.get('authorization')
-                const apiKeyHeader = request.headers.get('x-api-key')
-                const url = new URL(request.url)
-                const queryKey = url.searchParams.get('api_key')
+        // Enhanced path check to ensure we're applying the right middleware
+        const isProxyPath = path.startsWith('/proxy/')
+        const isManagementPath = path.startsWith('/manage/')
+        
+        // Skip auth check if the path doesn't match the middleware type
+        if ((keyType === 'proxy' && !isProxyPath) || (keyType === 'management' && !isManagementPath)) {
+            logger.debug(`Skipping ${keyType} auth for non-${keyType} path: ${path}`)
+            return
+        }
 
-                // Check Bearer token
-                if (authHeader?.startsWith('Bearer ')) {
-                    const token = authHeader.substring(7).trim()
-                    if (token === apiKey) return undefined
-                }
+        const authHeader = request.headers.get('authorization')?.trim()
+        const apiKeyHeader = request.headers.get('x-api-key')?.trim()
+        const queryKey = url.searchParams.get('api_key')?.trim()
 
-                // Check x-api-key header
-                if (apiKeyHeader === apiKey) return undefined
+        const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null
 
-                // Check query parameter
-                if (queryKey === apiKey) return undefined
+        const matches = (key: string | null | undefined) => key === apiKey
 
-                // If we get here, authentication failed
-                logger.warn(`Unauthorized access attempt to ${keyType}`, {
-                    path: url.pathname,
-                    method: request.method,
-                    ip: request.headers.get('x-forwarded-for') || 'unknown'
-                })
+        if (!apiKey) {
+            logger.warn(`Auth bypassed (no API key configured) for ${keyType}`, { path })
+            return
+        }
 
-                set.status = 401
-                return {
-                    error: 'Unauthorized',
-                    message: `Valid API key required for ${keyType} routes`,
-                    howToAuthenticate: [
-                        'Add header: "Authorization: Bearer YOUR_API_KEY"',
-                        'Add header: "x-api-key: YOUR_API_KEY"',
-                        'Add query param: "?api_key=YOUR_API_KEY"'
-                    ]
-                }
-            } catch (error) {
-                logger.error(`Auth error in ${keyType} middleware`, {
-                    error: error instanceof Error ? error.message : String(error)
-                })
-                return
-            }
+        logger.debug(`Auth attempt for ${keyType}`, {
+            path,
+            method: request.method,
+            hasAuthHeader: !!authHeader,
+            hasApiKeyHeader: !!apiKeyHeader,
+            hasQueryKey: !!queryKey
         })
+
+        const methodsTried = {
+            bearer: providedToken && matches(providedToken),
+            header: apiKeyHeader && matches(apiKeyHeader),
+            query: queryKey && matches(queryKey)
+        }
+
+        if (methodsTried.bearer || methodsTried.header || methodsTried.query) {
+            logger.debug(`Authenticated successfully for ${keyType}`, {
+                method: methodsTried.bearer ? 'Bearer' : methodsTried.header ? 'x-api-key' : 'query'
+            })
+            return
+        }
+
+        const noAuthProvided = !authHeader && !apiKeyHeader && !queryKey
+
+        logger.warn(`Unauthorized access attempt to ${keyType}`, {
+            path,
+            method: request.method,
+            ip: request.headers.get('x-forwarded-for') || request.headers.get('cf-connecting-ip') || 'unknown',
+            noAuthProvided,
+            providedAuthHeader: authHeader ? '[invalid]' : 'none',
+            providedApiKeyHeader: apiKeyHeader ? '[invalid]' : 'none',
+            providedQueryKey: queryKey ? '[invalid]' : 'none'
+        })
+
+        set.status = 401
+        return {
+            error: 'Unauthorized',
+            message: noAuthProvided
+                ? `No authentication provided. API key required for ${keyType} routes.`
+                : `Authentication failed. Invalid API key for ${keyType} routes.`,
+            howToAuthenticate: [
+                'Add header: "Authorization: Bearer YOUR_API_KEY"',
+                'Add header: "x-api-key: YOUR_API_KEY"',
+                'Add query param: "?api_key=YOUR_API_KEY"'
+            ],
+            keyHelp: {
+                requiredKeyType: keyType,
+                keySource: `Use ${keyType.toUpperCase()}_API_KEY from your .env file`,
+                envVar: keyType === 'proxy' ? 'PROXY_API_KEY' : 'MANAGEMENT_API_KEY',
+                envSetup: "Make sure you've set this in your .env.local file"
+            },
+            debug: {
+                keyType,
+                providedAuthMethod: providedToken ? 'bearer' : apiKeyHeader ? 'header' : queryKey ? 'query' : 'none',
+                attemptedTokenLength: providedToken?.length || 0,
+                attemptedHeaderLength: apiKeyHeader?.length || 0,
+                attemptedQueryLength: queryKey?.length || 0,
+                configuredKeyExists: !!apiKey,
+                path,
+                isProxyPath,
+                isManagementPath
+            }
+        }
+    })
 }
 
-// Export ready-to-use middleware instances
 export const proxyAuthMiddleware = createAuthMiddleware('proxy')
 export const managementAuthMiddleware = createAuthMiddleware('management')

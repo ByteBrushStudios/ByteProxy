@@ -15,6 +15,9 @@ export interface LogEntry {
 }
 
 class Logger {
+    // Cache the config
+    private configCache = getConfig();
+
     private getLevelNumber(level: string): LogLevel {
         switch (level.toLowerCase()) {
             case 'debug': return LogLevel.DEBUG
@@ -26,11 +29,10 @@ class Logger {
     }
 
     private shouldLog(level: LogLevel): boolean {
-        const config = getConfig()
-        if (!config.logging.enabled) return false
+        if (!this.configCache.logging.enabled) return false;
 
-        const configLevel = this.getLevelNumber(config.logging.level)
-        return level >= configLevel
+        const configLevel = this.getLevelNumber(this.configCache.logging.level);
+        return level >= configLevel;
     }
 
     private formatMessage(level: LogLevel, message: string, metadata?: Record<string, any>): string {

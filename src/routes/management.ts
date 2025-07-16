@@ -4,7 +4,7 @@ import { logger } from '../utils/logger'
 import { managementAuthMiddleware } from '../middleware/auth'
 
 export const managementRoutes = new Elysia({ prefix: '/manage' })
-    .use(managementAuthMiddleware) // Apply auth middleware
+    .use(managementAuthMiddleware)
     // Add a new service configuration
     .post('/services', async ({ body }) => {
         try {
@@ -272,5 +272,36 @@ export const managementRoutes = new Elysia({ prefix: '/manage' })
             summary: 'Get network and system diagnostics',
             description: 'Provides system information and troubleshooting tips for network issues',
             tags: ['Management', 'Diagnostics']
+        }
+    })
+
+    // Add key debug endpoint to help identify the correct key to use
+    .get('/key-debug', () => {
+        const config = require('../config').getConfig();
+
+        return {
+            message: 'API Key Debug Information',
+            note: 'This endpoint helps identify which key you should use',
+            keyInfo: {
+                managementKeyFormat: config.security.managementApiKey
+                    ? `${config.security.managementApiKey.substring(0, 12)}...`
+                    : 'Not configured',
+                proxyKeyFormat: config.security.proxyApiKey
+                    ? `${config.security.proxyApiKey.substring(0, 12)}...`
+                    : 'Not configured',
+                managementKeyLength: config.security.managementApiKey?.length || 0,
+                proxyKeyLength: config.security.proxyApiKey?.length || 0,
+                keyTypes: {
+                    management: 'Required for /manage/* routes',
+                    proxy: 'Required for /proxy/* routes'
+                }
+            },
+            help: 'For management routes, you must use the MANAGEMENT_API_KEY from your .env file'
+        }
+    }, {
+        detail: {
+            summary: 'Debug API key information',
+            description: 'Helper endpoint to determine which API key to use',
+            tags: ['Management', 'Debug']
         }
     })
