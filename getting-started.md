@@ -1,3 +1,9 @@
+---
+title: Getting Started
+layout: default
+nav_order: 2
+---
+
 # Getting Started with ByteProxy
 
 This guide will help you get ByteProxy up and running quickly.

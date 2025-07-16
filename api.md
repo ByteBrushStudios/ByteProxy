@@ -1,7 +1,8 @@
 ---
-layout: default
 title: API Reference
+layout: default
 nav_order: 6
+has_children: true
 ---
 
 # ByteProxy API Reference

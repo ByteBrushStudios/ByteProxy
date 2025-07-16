@@ -1,8 +1,8 @@
 ---
 title: Authentication
-description: Learn how to secure your ByteProxy instance with authentication
 layout: default
-nav_order: 3
+nav_order: 4
+parent: Security
 ---
 
 # Authentication

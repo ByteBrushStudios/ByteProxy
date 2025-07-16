@@ -1,7 +1,7 @@
 ---
-layout: default
 title: Usage Guide
-nav_order: 2
+layout: default
+nav_order: 3
 ---
 
 # ByteProxy Usage Guide

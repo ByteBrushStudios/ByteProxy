@@ -1,7 +1,8 @@
 ---
+title: Self-Hosting
 layout: default
-title: Self-Hosting Guide
-nav_order: 3
+nav_order: 7
+parent: Deployment
 ---
 
 # ByteProxy Self-Hosting Guide
