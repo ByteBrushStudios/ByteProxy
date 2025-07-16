@@ -6,73 +6,168 @@ nav_order: 3
 
 # ByteProxy Self-Hosting Guide
 
-This guide covers how to deploy ByteProxy to different environments.
+This guide covers how to self-host ByteProxy on your own infrastructure.
 
-## Requirements
+## System Requirements
 
-- Node.js 18+ or Bun 1.0+
-- Git
-- Basic command line knowledge
+- Node.js 18+ or Bun 1.0.0+
+- 512MB RAM minimum (1GB recommended)
+- 100MB disk space
 
-## Local Development Setup
+## Installation Options
+
+### Option 1: Direct Install
 
 ```bash
 # Clone the repository
-git clone https://github.com/ByteBrushStudios/Proxy.git
-cd Proxy
+git clone https://github.com/ByteBrushStudios/ByteProxy.git
+cd ByteProxy
 
-# Install dependencies (with npm)
-npm install
-# OR with Bun (recommended)
+# Install dependencies (using Bun - recommended)
 bun install
 
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your API tokens and settings
+# Or using npm
+npm install
 
-# Start development server
-bun run dev
-# OR with npm
-npm run dev
+# Create environment file
+cp .env.example .env.local
+
+# Edit your configuration
+nano .env.local
 ```
 
-Visit `http://localhost:3420/docs` to confirm everything is working.
-
-## Production Deployment
-
-### Option 1: Docker
+### Option 2: Using Docker
 
 ```bash
-# Build the Docker image
-docker build -t byteproxy .
+# Pull the image
+docker pull bytebrushstudios/byteproxy:latest
+
+# Create a directory for config
+mkdir -p ~/byteproxy/config
+cd ~/byteproxy
+
+# Create environment file
+curl -o .env https://raw.githubusercontent.com/ByteBrushStudios/ByteProxy/main/.env.example
+nano .env
 
 # Run the container
-docker run -p 3420:3420 --env-file .env.production byteproxy
+docker run -d \
+  --name byteproxy \
+  -p 3420:3420 \
+  --env-file .env \
+  bytebrushstudios/byteproxy:latest
 ```
 
-### Option 2: Bare Metal/VPS
+## Configuration
+
+At minimum, you'll need to:
+
+1. Set the `PORT` if you want to change the default 3420
+2. Configure service tokens:
+   - `DISCORD_BOT_TOKEN` - For Discord API integration
+   - `GITHUB_TOKEN` - For GitHub API integration
+3. Set security options:
+   - `REQUIRE_AUTH_FOR_PROXY` - Enable/disable proxy endpoint authentication
+   - `REQUIRE_AUTH_FOR_MANAGEMENT` - Enable/disable management endpoint authentication
+   - `PROXY_API_KEY` - Set your proxy API key
+   - `MANAGEMENT_API_KEY` - Set your management API key
+
+See the [Configuration Reference](config.md) for all options.
+
+## Running in Production
+
+### Using Bun (Recommended)
 
 ```bash
-# Clone and set up
-git clone https://github.com/ByteBrushStudios/Proxy.git
-cd Proxy
-bun install
-
-# Set up environment variables
-cp .env.example .env.production
-# Edit .env.production with your API tokens and settings
-
-# Build and start the server
+# Build the TypeScript code
 bun run build
-PORT=3420 node dist/index.js
+
+# Start the server
+NODE_ENV=production bun run start
 ```
 
-### Option 3: Railway/Render/Fly.io
+### Using Node.js
 
-1. Connect your GitHub repository
-2. Set the build command to `bun run build` (or `npm run build`)
-3. Set the start command to `node dist/index.js`
-4. Configure environment variables in the platform dashboard
+```bash
+# Build the TypeScript code
+npm run build
+
+# Start the server
+NODE_ENV=production npm run start
+```
+
+### Using Process Managers
+
+For better reliability, use a process manager:
+
+#### PM2
+
+```bash
+npm install -g pm2
+pm2 start dist/index.js --name byteproxy
+pm2 save
+```
+
+#### Systemd
+
+Create a service file `/etc/systemd/system/byteproxy.service`:
+
+```ini
+[Unit]
+Description=ByteProxy Server
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/byteproxy
+ExecStart=/usr/bin/bun run dist/index.js
+Restart=on-failure
+Environment=NODE_ENV=production
+Environment=PORT=3420
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable and start:
+
+```bash
+sudo systemctl enable byteproxy
+sudo systemctl start byteproxy
+```
+
+## Using with a Reverse Proxy
+
+### Nginx Configuration
+
+```nginx
+server {
+    listen 80;
+    server_name proxy.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:3420;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+### Caddy Configuration
+
+```
+# Caddyfile
+proxy.yourdomain.com {
+    reverse_proxy localhost:3420
+}
+```
 
 ## Security Considerations
 

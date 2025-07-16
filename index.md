@@ -18,16 +18,21 @@ ByteProxy supports multiple authentication methods:
 - API Key via header: `x-api-key: YOUR_API_KEY`
 - API Key via query parameter: `?api_key=YOUR_API_KEY`
 
-Authentication can be enabled/disabled in the configuration.
+Authentication can be enabled/disabled in the configuration. For detailed information, see our [Authentication Guide](auth.md).
 
 ## Quick Links
 
+- [Getting Started](getting-started.md)
 - [Usage Guide](usage.md)
+- [Authentication](auth.md)
 - [Self-Hosting](self-host.md)
 - [Configuration Reference](config.md)
-- [Troubleshooting](troubleshooting.md)
 - [API Reference](api.md)
+- [Service Management](services.md)
+- [Troubleshooting](troubleshooting.md)
+- [Contributing](contributing.md)
+- [Changelog](changelog.md)
 
 ---
 
-Built by [ByteBrush Studios](https://github.com/ByteBrushStudios) and [CodeMeAPixel](https://codemeapixel.dev).
+Built by [ByteBrush Studios](https://github.com/ByteBrushStudios) and [CodeMeAPixel](https://codemeapixel.dev)

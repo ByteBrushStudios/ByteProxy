@@ -6,17 +6,9 @@ nav_order: 2
 
 # ByteProxy Usage Guide
 
-This guide covers how to effectively use ByteProxy for different API services.
+This guide explains how to use ByteProxy for different service integrations.
 
-## Basic Concepts
-
-ByteProxy works by forwarding your requests to third-party APIs while:
-- Managing authentication
-- Handling rate limits
-- Providing consistent error handling
-- Adding helpful debugging information
-
-## Making Proxy Requests
+## Proxy Endpoints
 
 All proxy requests follow this pattern:
 

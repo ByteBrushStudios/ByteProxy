@@ -6,125 +6,120 @@ nav_order: 6
 
 # ByteProxy API Reference
 
-Complete reference for all ByteProxy API endpoints.
+This document provides a comprehensive reference of all endpoints available in ByteProxy.
 
-## Base URL
+> **Note:** The interactive API documentation is available at [/docs](http://localhost:3420/docs) when the server is running.
 
-All API paths are relative to your ByteProxy instance:
+## Base Endpoints
 
+### GET /
+
+Returns basic information about the ByteProxy API.
+
+**Response Example:**
+```json
+{
+  "message": "Welcome to ByteProxy, feel free to browse around!",
+  "source": "https://github.com/ByteBrushStudios/ByteProxy",
+  "documentation": "/docs",
+  "status": "/status",
+  "health": "/health",
+  "version": "v0.1.0-dev",
+  "checkUpdates": "/version/check"
+}
 ```
-http://localhost:3420
+
+### GET /up
+
+View information about the server's pressure state.
+
+**Response Example:**
+```json
+{
+  "status": "ok",
+  "eventLoopDelay": 0.34,
+  "heapUsed": 21450240,
+  "rssBytes": 67584000,
+  "eventLoopUtilized": 0.002,
+  "healthy": true
+}
 ```
 
-## Authentication
+## Health Endpoints
 
-When authentication is enabled, add one of:
+### GET /health
 
+Quick health check endpoint.
+
+**Response Example:**
+```json
+{
+  "status": "ok",
+  "uptime": 3600,
+  "timestamp": "2023-05-15T12:00:00.000Z"
+}
 ```
-Authorization: Bearer YOUR_API_KEY
-x-api-key: YOUR_API_KEY
-?api_key=YOUR_API_KEY (query parameter)
+
+### GET /status
+
+Detailed status information.
+
+**Response Example:**
+```json
+{
+  "status": "ok",
+  "uptime": 3600,
+  "version": "v0.1.0-dev",
+  "services": {
+    "discord": {
+      "status": "ok",
+      "authConfigured": true
+    },
+    "github": {
+      "status": "ok",
+      "authConfigured": true
+    }
+  },
+  "system": {
+    "memoryUsage": {
+      "rss": 67584000,
+      "heapTotal": 33554432,
+      "heapUsed": 21450240,
+      "external": 1572864
+    },
+    "loadAverage": [1.2, 1.1, 0.95]
+  }
+}
 ```
 
 ## Proxy Endpoints
 
-### List Available Services
+### GET|POST|PUT|DELETE /proxy/:service/*
 
-```
-GET /proxy/services
-```
+Proxy requests to the specified service.
 
-**Response:**
-```json
-{
-  "services": [
-    {
-      "key": "discord",
-      "name": "Discord API",
-      "baseUrl": "https://discord.com/api/",
-      "hasAuth": true,
-      "rateLimit": {
-        "maxRequests": 50,
-        "windowMs": 60000
-      }
-    },
-    {
-      "key": "github",
-      "name": "GitHub API",
-      "baseUrl": "https://api.github.com/",
-      "hasAuth": true,
-      "rateLimit": {
-        "maxRequests": 60,
-        "windowMs": 3600000
-      }
-    }
-  ],
-  "count": 2
-}
-```
-
-### Get Service Rate Limit Status
-
-```
-GET /proxy/services/:service/rate-limit
-```
-
-**Response:**
-```json
-{
-  "service": "discord",
-  "remaining": 45,
-  "resetTime": 1626701234567,
-  "resetIn": 25
-}
-```
-
-### Proxy Request to Service
-
-```
-ANY /proxy/:service/*
-```
-
-Where:
-- `:service` is the service key (e.g., `discord`, `github`)
-- `*` is the API endpoint path
+**Parameters:**
+- `:service` - The service to proxy to (e.g., discord, github)
+- `*` - The path to forward to the service
 
 **Example:**
-```
-GET /proxy/discord/users/@me
-```
+```bash
+# Get GitHub user info
+curl http://localhost:3420/proxy/github/users/ByteBrushStudios
 
-**Response:**
-Contains the response from the target API, plus:
-```
-X-Proxy-Service: discord
-X-Proxy-Duration: 123ms
-```
-
-### Authentication Test
-
-```
-GET /proxy/auth-test
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Authentication successful",
-  "timestamp": "2023-07-16T12:34:56.789Z"
-}
+# Send message to Discord
+curl -X POST http://localhost:3420/proxy/discord/channels/123456789/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello!"}'
 ```
 
 ## Management Endpoints
 
-### List All Services
+### GET /manage/services
 
-```
-GET /manage/services
-```
+List all configured services.
 
-**Response:**
+**Response Example:**
 ```json
 {
   "services": [
@@ -139,120 +134,111 @@ GET /manage/services
         "windowMs": 60000
       }
     },
-    ...
+    {
+      "key": "github",
+      "name": "GitHub API",
+      "baseUrl": "https://api.github.com/",
+      "hasAuth": true,
+      "authConfigured": true,
+      "rateLimit": {
+        "maxRequests": 60,
+        "windowMs": 3600000
+      }
+    }
   ],
   "count": 2
 }
 ```
 
-### Get Service Configuration
+### GET /manage/services/:key
 
-```
-GET /manage/services/:key
-```
+Get configuration for a specific service.
 
-**Response:**
+**Parameters:**
+- `:key` - The service key
+
+**Response Example:**
 ```json
 {
-  "key": "discord",
+  "key": "github",
   "config": {
-    "name": "Discord API",
-    "baseUrl": "https://discord.com/api/",
+    "name": "GitHub API",
+    "baseUrl": "https://api.github.com/",
     "headers": {
-      "User-Agent": "DiscordBot (https://github.com/ByteBrushStudios/ByteProxy, 0.1.0)",
-      "Content-Type": "application/json"
-    },
-    "rateLimit": {
-      "maxRequests": 50,
-      "windowMs": 60000
+      "User-Agent": "ByteProxy/0.1.0",
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
     },
     "auth": {
-      "type": "bot",
+      "type": "bearer",
       "tokenConfigured": true
     },
-    "versionedBaseUrls": {
-      "v10": "https://discord.com/api/v10/",
-      "v9": "https://discord.com/api/v9/"
+    "rateLimit": {
+      "maxRequests": 60,
+      "windowMs": 3600000
     }
   }
 }
 ```
 
-### Add New Service
+### POST /manage/services
 
-```
-POST /manage/services
-```
+Add a new service.
 
 **Request Body:**
 ```json
 {
-  "key": "openai",
+  "key": "custom-api",
   "config": {
-    "name": "OpenAI API",
-    "baseUrl": "https://api.openai.com/v1",
+    "name": "Custom API",
+    "baseUrl": "https://api.example.com/",
     "headers": {
-      "Content-Type": "application/json"
-    },
-    "auth": {
-      "type": "bearer",
-      "tokenEnvVar": "OPENAI_API_KEY"
-    },
-    "rateLimit": {
-      "maxRequests": 60,
-      "windowMs": 60000
+      "User-Agent": "ByteProxy/1.0"
     }
   }
 }
 ```
 
-**Response:**
+**Response Example:**
 ```json
 {
-  "message": "Service 'openai' added successfully",
-  "key": "openai",
+  "message": "Service 'custom-api' added successfully",
+  "key": "custom-api",
   "config": {
-    "name": "OpenAI API",
-    "baseUrl": "https://api.openai.com/v1",
+    "name": "Custom API",
+    "baseUrl": "https://api.example.com/",
     "headers": {
-      "Content-Type": "application/json"
-    },
-    "auth": {
-      "type": "bearer",
-      "tokenEnvVar": "OPENAI_API_KEY"
-    },
-    "rateLimit": {
-      "maxRequests": 60,
-      "windowMs": 60000
+      "User-Agent": "ByteProxy/1.0"
     }
   }
 }
 ```
 
-### Test Service Connectivity
+### POST /manage/services/:key/test
 
-```
-POST /manage/services/:key/test
-```
+Test connectivity to a service.
 
-**Response (Success):**
+**Parameters:**
+- `:key` - The service key
+
+**Response Example (Success):**
 ```json
 {
-  "service": "discord",
+  "service": "github",
   "status": "reachable",
   "responseStatus": 200,
   "duration": "123ms",
-  "baseUrl": "https://discord.com/api/"
+  "baseUrl": "https://api.github.com/"
 }
 ```
 
-**Response (Failure):**
+**Response Example (Failure):**
 ```json
 {
-  "service": "example",
+  "service": "custom-api",
   "status": "unreachable",
-  "error": "getaddrinfo ENOTFOUND example.com",
-  "baseUrl": "https://example.com/api",
+  "error": "connect ECONNREFUSED 127.0.0.1:80",
+  "baseUrl": "https://api.example.com/",
   "troubleshooting": {
     "suggestions": [
       "Check your internet connection",
@@ -264,116 +250,130 @@ POST /manage/services/:key/test
 }
 ```
 
-### Network Diagnostics
+### GET /manage/diagnostics
 
-```
-GET /manage/diagnostics
-```
+Get system and network diagnostics.
 
-**Response:**
+**Response Example:**
 ```json
 {
   "system": {
     "platform": "linux",
-    "nodeVersion": "v18.16.0",
+    "nodeVersion": "v18.12.1",
     "runtime": "Bun",
     "uptime": 3600
   },
   "network": {
-    "strictTLS": false,
+    "strictTLS": true,
     "timeout": 30000,
     "retryAttempts": 2
   },
   "environment": {
     "timeZone": "UTC",
-    "currentTime": "2023-07-16T12:34:56.789Z",
+    "currentTime": "2023-05-15T12:00:00.000Z",
     "locale": "en-US"
   },
   "authentication": {
     "discord": {
       "tokenConfigured": true,
       "envVar": "DISCORD_BOT_TOKEN",
-      "authType": "bot",
-      "tokenPreview": "MTM5ND..."
+      "authType": "bot"
     },
     "github": {
       "tokenConfigured": true,
       "envVar": "GITHUB_TOKEN",
-      "authType": "bearer",
-      "tokenPreview": "ghp_wd1I..."
-    }
-  },
-  "troubleshooting": {
-    "authIssues": {
-      "commonCauses": ["..."],
-      "quickFixes": ["..."]
-    },
-    "tlsIssues": {
-      "commonCauses": ["..."],
-      "quickFixes": ["..."]
+      "authType": "bearer"
     }
   }
 }
 ```
 
-## Health Endpoints
+### GET /manage/key-debug
 
-### Basic Health Check
+Get information about API keys.
 
-```
-GET /health
-```
-
-**Response:**
+**Response Example:**
 ```json
 {
-  "status": "healthy",
-  "timestamp": "2023-07-16T12:34:56.789Z",
-  "uptime": 3600,
-  "version": "0.1.0",
-  "services": {
-    "total": 2,
-    "available": ["discord", "github"]
-  },
-  "config": {
-    "port": 3420,
-    "logging": {
-      "enabled": true,
-      "level": "info"
-    },
-    "cors": {
-      "enabled": true,
-      "origins": ["*"]
+  "message": "API Key Debug Information",
+  "note": "This endpoint helps identify which key you should use",
+  "keyInfo": {
+    "managementKeyFormat": "abc123def456...",
+    "proxyKeyFormat": "xyz789uvw567...",
+    "managementKeyLength": 32,
+    "proxyKeyLength": 32,
+    "keyTypes": {
+      "management": "Required for /manage/* routes",
+      "proxy": "Required for /proxy/* routes"
     }
-  }
+  },
+  "help": "For management routes, you must use the MANAGEMENT_API_KEY from your .env file"
 }
 ```
 
-### Detailed Status
+## Version Endpoints
 
-```
-GET /status
-```
+### GET /version/check
 
-**Response:**
+Check for updates.
+
+**Response Example (Up to Date):**
 ```json
 {
-  "application": {
-    "name": "ByteProxy",
-    "version": "0.1.0",
-    "description": "Extensible web proxy for Discord, GitHub, and other APIs"
-  },
-  "runtime": {
-    "node": "v18.16.0",
-    "platform": "linux",
-    "uptime": 3600,
-    "memory": {
-      "rss": 75882496,
-      "heapTotal": 23990272,
-      "heapUsed": 17661944,
-      "external": 1983656,
-      "arrayBuffers": 285873
-    }
+  "currentVersion": "v0.1.0-dev",
+  "latestVersion": "v0.1.0",
+  "latestReleaseUrl": "https://github.com/ByteBrushStudios/ByteProxy/releases/tag/v0.1.0",
+  "isLatest": true,
+  "isPrerelease": false,
+  "releaseDate": "2023-05-15T10:00:00Z",
+  "updateAvailable": false
+}
+```
+
+**Response Example (Update Available):**
+```json
+{
+  "currentVersion": "v0.0.9-dev",
+  "latestVersion": "v0.1.0",
+  "latestReleaseUrl": "https://github.com/ByteBrushStudios/ByteProxy/releases/tag/v0.1.0",
+  "isLatest": false,
+  "isPrerelease": false,
+  "releaseDate": "2023-05-15T10:00:00Z",
+  "updateAvailable": true
+}
+```
+
+## Authentication
+
+When authentication is enabled, you must provide an API key using one of these methods:
+
+1. Bearer token: `Authorization: Bearer your-api-key`
+2. API key header: `x-api-key: your-api-key`
+3. Query parameter: `?api_key=your-api-key`
+
+## Error Responses
+
+All error responses follow this format:
+
+```json
+{
+  "error": "Error type",
+  "message": "Detailed error message",
+  "documentation": "/docs"
+}
+```
+
+Common error types:
+- Invalid request format (400)
+- Endpoint not found (404)
+- Internal server error (500)
+- Service unavailable (503)
+
+## Next Steps
+
+- [Usage Guide](usage.md)
+- [Configuration Reference](config.md)
+- [Troubleshooting](troubleshooting.md)
   },
   "configuration": {
     "port": 3420,

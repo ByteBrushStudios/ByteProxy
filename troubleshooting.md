@@ -8,178 +8,178 @@ nav_order: 5
 
 Common issues and solutions when working with ByteProxy.
 
-## Authentication Issues
+## Diagnostics
 
-### Problem: API Key Not Working
+ByteProxy provides built-in diagnostics to help troubleshoot issues:
 
-**Symptoms:**
-- 401 Unauthorized responses
-- "Valid API key required" error messages
+```bash
+# View system diagnostics
+curl http://localhost:3420/manage/diagnostics
 
-**Solutions:**
+# Check health status
+curl http://localhost:3420/health
 
-1. **Check Environment Variables:**
-   ```bash
-   # Verify .env file has the correct values
-   cat .env.local | grep API_KEY
-   ```
+# Check detailed status
+curl http://localhost:3420/status
 
-2. **Verify API Key Format:**
-   - No extra spaces or newlines
-   - Special characters properly escaped
+# Test service connectivity
+curl -X POST http://localhost:3420/manage/services/discord/test
+```
 
-3. **Check Authentication Headers:**
-   ```bash
-   # Use the correct format (note the space after "Bearer")
-   curl -H "Authorization: Bearer YOUR_API_KEY" http://localhost:3420/proxy/...
-   ```
+## Common Issues
 
-4. **Try Query Parameter:**
-   ```bash
-   curl "http://localhost:3420/proxy/discord/users/@me?api_key=YOUR_API_KEY"
-   ```
+### Connection Issues
 
-5. **Enable Debug Logging:**
-   ```
-   # In .env.local
-   LOGGING_LEVEL=debug
-   ```
+#### 503 Server Under Pressure
 
-### Problem: Service Authentication Failing
+**Symptom:** Requests return 503 with "Server under pressure" message.
 
-**Symptoms:**
-- "Authentication token missing for service" errors
-- 401 errors from the target API
+**Solution:**
+- Check server resources (memory, CPU)
+- Increase available resources
+- Reduce load or scale horizontally
+- Adjust pressure thresholds in `src/services/up.ts`
+
+#### TLS/SSL Certificate Errors
+
+**Symptom:** Requests to secure services fail with certificate errors.
 
 **Solutions:**
+- Ensure your system date/time is correct
+- Update your CA certificates
+- For development only, set `STRICT_TLS=false`
+- Check if a corporate firewall is intercepting SSL
 
-1. **Check Environment Variables:**
-   ```bash
-   # For Discord
-   echo $DISCORD_BOT_TOKEN
-   
-   # For GitHub
-   echo $GITHUB_TOKEN
-   ```
+### Authentication Issues
 
-2. **Verify Token Validity:**
-   - Try using the token directly with the API
-   - Check if token has expired or been revoked
+#### 401/403 Errors from Backend Services
 
-3. **Restart After Setting Variables:**
-   ```bash
-   # After updating .env.local
-   bun run dev
-   ```
-
-4. **Check Token Permissions:**
-   - Discord: Verify bot permissions
-   - GitHub: Check token scopes
-
-5. **Diagnostics Endpoint:**
-   ```bash
-   curl http://localhost:3420/manage/diagnostics
-   ```
-
-## Network Issues
-
-### Problem: TLS/SSL Certificate Errors
-
-**Symptoms:**
-- "TLS/SSL certificate error" messages
-- Connection errors to target APIs
+**Symptom:** Requests to Discord, GitHub, etc. return 401 or 403.
 
 **Solutions:**
+- Verify your tokens in `.env.local` are correct and not expired
+- Check that tokens have the necessary permissions
+- Ensure environment variables are loaded correctly
+- Use `/manage/diagnostics` to verify token configuration
+- Restart the server after updating environment variables
 
-1. **Check System Time:**
-   - Incorrect system time can cause certificate validation failures
+#### API Key Authentication Failing
 
-2. **Disable Strict TLS (Development Only):**
-   ```
-   # In .env.local
-   STRICT_TLS=false
-   ```
-
-3. **Corporate Network Issues:**
-   - Try from a different network
-   - Check corporate proxy settings
-
-4. **Update CA Certificates:**
-   ```bash
-   # On Ubuntu/Debian
-   sudo update-ca-certificates
-   
-   # On CentOS/RHEL
-   sudo update-ca-trust
-   ```
-
-### Problem: Request Timeouts
-
-**Symptoms:**
-- "Request timeout after X ms" errors
+**Symptom:** Authentication to ByteProxy fails with 401.
 
 **Solutions:**
+- Check that the correct API key is being used
+- Verify the authentication method (header, bearer, query)
+- Use `/manage/key-debug` to check key information
+- Ensure `REQUIRE_AUTH_FOR_PROXY` or `REQUIRE_AUTH_FOR_MANAGEMENT` are enabled
 
-1. **Increase Timeout:**
-   ```
-   # In .env.local or config
-   REQUEST_TIMEOUT=60000
-   ```
+### Rate Limiting
 
-2. **Check Network Stability:**
-   - Test network latency to API servers
-   
-3. **API Status:**
-   - Check if target API is experiencing issues
+#### 429 Too Many Requests
 
-## Performance Issues
-
-### Problem: Server Under Pressure
-
-**Symptoms:**
-- 503 "Server under pressure" responses
-- High CPU/memory usage
+**Symptom:** Service returns 429 errors.
 
 **Solutions:**
+- Reduce request frequency
+- Implement client-side rate limiting
+- Adjust service rate limit configuration
+- Use a token with higher rate limits
 
-1. **Check Server Resources:**
-   ```bash
-   # Memory usage
-   free -h
-   
-   # CPU usage
-   top
-   ```
+### Operational Issues
 
-2. **Adjust Pressure Settings:**
-   ```typescript
-   // In src/index.ts
-   const underPressure = new UnderPressure({
-     maxEventLoopDelay: 500, // Increase to 500ms
-     maxHeapUsedBytes: 1024 * 1024 * 1024, // 1GB
-     maxRssBytes: 2048 * 1024 * 1024, // 2GB
-   })
-   ```
+#### Server Won't Start
 
-3. **Monitor `/up` Endpoint:**
-   ```bash
-   curl http://localhost:3420/up
-   ```
-
-4. **Add Caching:**
-   - Consider implementing response caching for frequent requests
-
-## Rate Limiting Issues
-
-### Problem: Rate Limit Exceeded
-
-**Symptoms:**
-- "Rate limit exceeded for [service]" errors
+**Symptom:** Server fails to start up.
 
 **Solutions:**
+- Check if the port is already in use
+- Verify environment variables are correctly formatted
+- Check for syntax errors in custom code
+- Review startup logs for specific errors
+- Set `SKIP_UPDATE_CHECK=true` if update checking is failing
 
-1. **Check Current Rate Limits:**
-   ```bash
+#### High Memory Usage
+
+**Symptom:** Server consuming excessive memory.
+
+**Solutions:**
+- Monitor memory usage with `/up` endpoint
+- Check for memory leaks in custom code
+- Reduce max concurrent connections
+- Set appropriate heap limits for Node.js or Bun
+
+### Proxy Behavior Issues
+
+#### Request Transformation Problems
+
+**Symptom:** Requests not correctly forwarded to backend services.
+
+**Solutions:**
+- Check service configuration (baseUrl, headers)
+- Verify URL path construction
+- Use curl with `-v` flag to debug request/response details
+- Ensure content types are correctly set
+
+#### CORS Issues
+
+**Symptom:** Browser requests fail with CORS errors.
+
+**Solutions:**
+- Ensure `CORS_ENABLED=true`
+- Add the origin to `CORS_ORIGINS` (comma-separated)
+- Check that preflight requests are handled correctly
+- Verify that credentials mode is properly configured
+
+## Common Error Codes
+
+| Code | Description | Troubleshooting |
+|------|-------------|-----------------|
+| 400 | Bad Request | Check request format and parameters |
+| 401 | Unauthorized | Verify API keys or service tokens |
+| 403 | Forbidden | Check permissions and authentication scope |
+| 404 | Not Found | Verify endpoint path and service availability |
+| 429 | Too Many Requests | Implement rate limiting or backoff |
+| 500 | Internal Server Error | Check server logs for errors |
+| 502 | Bad Gateway | Check backend service connectivity |
+| 503 | Service Unavailable | Check resource utilization with `/up` |
+| 504 | Gateway Timeout | Increase `NETWORK_TIMEOUT` or check service responsiveness |
+
+## Logs
+
+Check the server logs for detailed error information. By default, logs are output to the console, but you can redirect them to a file:
+
+```bash
+bun run start > byteproxy.log 2>&1
+```
+
+Increase log verbosity by setting `LOG_LEVEL=debug` in your environment variables.
+
+## Getting Help
+
+If you're still experiencing issues:
+
+1. [Create an issue](https://github.com/ByteBrushStudios/ByteProxy/issues) on GitHub
+2. [Join our Discord](https://discord.gg/Vv2bdC44Ge) for community support
+3. Check the [API Reference](api.md) for endpoint details
+4. Review the [Configuration Guide](config.md) for proper setup
+
+## Updating ByteProxy
+
+If you're experiencing issues, ensure you're on the latest version:
+
+```bash
+# Pull latest changes
+git pull origin main
+
+# Install dependencies
+bun install
+
+# Rebuild
+bun run build
+
+# Restart the server
+bun run start
+```
    curl http://localhost:3420/proxy/services/github/rate-limit
    ```
 

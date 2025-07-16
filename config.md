@@ -6,142 +6,155 @@ nav_order: 4
 
 # ByteProxy Configuration Reference
 
-ByteProxy offers extensive configuration options to customize behavior.
+ByteProxy offers extensive configuration options through environment variables and dynamic configuration endpoints.
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | `3420` |
-| `DISCORD_BOT_TOKEN` | Discord API token | - |
-| `GITHUB_TOKEN` | GitHub Personal Access Token | - |
-| `PROXY_API_KEY` | API key for proxy routes | - |
-| `MANAGEMENT_API_KEY` | API key for management routes | - |
-| `REQUIRE_AUTH_FOR_PROXY` | Enable auth for proxy routes | `false` |
-| `REQUIRE_AUTH_FOR_MANAGEMENT` | Enable auth for management routes | `false` |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3420` | The port number for the server |
+| `CORS_ENABLED` | `true` | Enable/disable CORS support |
+| `CORS_ORIGINS` | `*` | Comma-separated list of allowed origins |
+| `LOG_LEVEL` | `info` | Logging level (debug, info, warn, error) |
+| `REQUIRE_AUTH_FOR_PROXY` | `false` | Require authentication for proxy routes |
+| `REQUIRE_AUTH_FOR_MANAGEMENT` | `false` | Require authentication for management routes |
+| `PROXY_API_KEY` | | API key for proxy routes |
+| `MANAGEMENT_API_KEY` | | API key for management routes |
+| `NETWORK_TIMEOUT` | `30000` | Request timeout in milliseconds |
+| `NETWORK_RETRIES` | `2` | Number of retry attempts for failed requests |
+| `STRICT_TLS` | `true` | Enforce strict TLS certificate validation |
+| `SKIP_UPDATE_CHECK` | `false` | Skip checking for updates at startup |
+| `DISCORD_BOT_TOKEN` | | Discord bot token for authentication |
+| `GITHUB_TOKEN` | | GitHub personal access token |
 
-## Adding New Services
+## Service Configuration
 
-You can add services in two ways:
+Services are defined in `src/config/index.ts` and can be dynamically managed through the API.
 
-### 1. At Runtime (API)
+### Default Services
 
-Use the management API to add services dynamically:
+ByteProxy comes with pre-configured services:
+
+#### Discord API
+
+```typescript
+{
+    id: 'discord',
+    name: 'Discord API',
+    baseUrl: 'https://discord.com/api/',
+    versionedBaseUrls: {
+        v10: 'https://discord.com/api/v10/',
+        v9: 'https://discord.com/api/v9/'
+    },
+    headers: {
+        'User-Agent': 'DiscordBot (https://github.com/ByteBrushStudios/ByteProxy, 0.1.0)',
+        'Content-Type': 'application/json'
+    },
+    rateLimit: {
+        maxRequests: 50,
+        windowMs: 60000
+    },
+    auth: {
+        type: 'bot',
+        tokenEnvVar: 'DISCORD_BOT_TOKEN'
+    }
+}
+```
+
+#### GitHub API
+
+```typescript
+{
+    id: 'github',
+    name: 'GitHub API',
+    baseUrl: 'https://api.github.com/',
+    headers: {
+        'User-Agent': 'ByteProxy/0.1.0',
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+    },
+    rateLimit: {
+        maxRequests: 60,
+        windowMs: 3600000
+    },
+    auth: {
+        type: 'bearer',
+        tokenEnvVar: 'GITHUB_TOKEN'
+    }
+}
+```
+
+### Adding Custom Services
+
+You can add custom services at runtime:
 
 ```bash
 curl -X POST http://localhost:3420/manage/services \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_MANAGEMENT_API_KEY" \
   -d '{
-    "key": "openai",
+    "key": "custom-api",
     "config": {
-      "name": "OpenAI API",
-      "baseUrl": "https://api.openai.com/v1",
+      "name": "Custom API",
+      "baseUrl": "https://api.example.com/",
       "headers": {
+        "User-Agent": "ByteProxy/1.0",
         "Content-Type": "application/json"
+      },
+      "rateLimit": {
+        "maxRequests": 100,
+        "windowMs": 60000
       },
       "auth": {
         "type": "bearer",
-        "tokenEnvVar": "OPENAI_API_KEY"
-      },
-      "rateLimit": {
-        "maxRequests": 60,
-        "windowMs": 60000
+        "tokenEnvVar": "CUSTOM_API_TOKEN"
       }
     }
   }'
 ```
 
-### 2. In Source Code
+### Service Configuration Properties
 
-Edit `src/config/index.ts` to add persistent services:
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | string | Display name for the service |
+| `baseUrl` | string | Base URL for API requests |
+| `versionedBaseUrls` | object | Optional versioned endpoints |
+| `headers` | object | Default headers to send with every request |
+| `rateLimit.maxRequests` | number | Maximum requests allowed |
+| `rateLimit.windowMs` | number | Time window for rate limiting in milliseconds |
+| `auth.type` | string | Auth type: 'bearer', 'basic', 'api-key', or 'bot' |
+| `auth.tokenEnvVar` | string | Environment variable containing the auth token |
+| `auth.headerName` | string | Custom header name for api-key auth type |
 
-```typescript
-const defaultConfig: ProxyConfig = {
-  // ...existing config...
-  services: {
-    // ...existing services...
-    openai: {
-      name: 'OpenAI API',
-      baseUrl: 'https://api.openai.com/v1',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      auth: {
-        type: 'bearer',
-        tokenEnvVar: 'OPENAI_API_KEY'
-      },
-      rateLimit: {
-        maxRequests: 60,
-        windowMs: 60000
-      }
-    }
-  }
-}
+## Configuration Management
+
+### View Configuration
+
+Access runtime configuration through the management endpoints:
+
+```bash
+# List all services
+curl http://localhost:3420/manage/services
+
+# Get specific service configuration
+curl http://localhost:3420/manage/services/discord
+
+# View diagnostics (includes configuration info)
+curl http://localhost:3420/manage/diagnostics
 ```
 
-## Service Configuration Options
+### Testing Configuration
 
-| Option | Description | Type | Required |
-|--------|-------------|------|----------|
-| `name` | Human-readable service name | `string` | Yes |
-| `baseUrl` | Base URL for the API | `string` | Yes |
-| `headers` | Default headers to include | `Record<string, string>` | No |
-| `auth` | Authentication configuration | `object` | No |
-| `auth.type` | Auth type: `bearer`, `basic`, `api-key`, or `bot` | `string` | Yes (if auth) |
-| `auth.tokenEnvVar` | Environment variable with token | `string` | No |
-| `auth.headerName` | Header name for API key auth | `string` | Only for `api-key` |
-| `rateLimit` | Rate limiting configuration | `object` | No |
-| `rateLimit.maxRequests` | Max requests per window | `number` | Yes (if rateLimit) |
-| `rateLimit.windowMs` | Time window in milliseconds | `number` | Yes (if rateLimit) |
-| `versionedBaseUrls` | URLs for different API versions | `Record<string, string>` | No |
+```bash
+# Test service connectivity
+curl -X POST http://localhost:3420/manage/services/github/test
 
-## CORS Configuration
-
-Configure CORS in `src/config/index.ts`:
-
-```typescript
-cors: {
-  enabled: true,
-  origins: ['https://yourdomain.com', 'https://app.yourdomain.com']
-}
-```
-
-Use `origins: ['*']` to allow all origins (not recommended for production).
-
-## Network Settings
-
-```typescript
-network: {
-  timeout: 30000, // Request timeout in ms
-  retryAttempts: 2, // Number of retry attempts
-  strictTLS: true // Enforce strict TLS certificate validation
-}
-```
-
-## Logging Configuration
-
-```typescript
-logging: {
-  enabled: true,
-  level: 'info' // 'debug', 'info', 'warn', or 'error'
-}
-```
-
-## Path Rewriting
-
-For services that require special path handling, use the `proxyHttpOrWs` method with path rewriting:
-
-```typescript
-proxyService.proxyHttpOrWs(req, res, targetUrl, {
-  rewritePrefix: '/api/v1',
-  rewritePath: (path, req) => path.replace(/^\/old/, '/new'),
-  ws: true // Enable WebSocket support
-})
+# Check authentication status
+curl http://localhost:3420/manage/key-debug
 ```
 
 ## Next Steps
 
-- [Usage Guide](usage.md) - How to use ByteProxy
-- [API Reference](api.md) - Complete API documentation
-- [Troubleshooting](troubleshooting.md) - Common issues and solutions
+- [Usage Guide](usage.md)
+- [API Reference](api.md)
+- [Troubleshooting](troubleshooting.md)
