@@ -7,7 +7,7 @@
 *.orig
 docs/*
 docs/.*
-docs/
+docs
 
 
 # Created by git when using merge tools for conflicts

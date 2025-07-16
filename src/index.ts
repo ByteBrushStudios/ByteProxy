@@ -1,156 +1,218 @@
 import { Elysia } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
-import { getConfig } from './config'
+import { getConfig, getAppVersion, checkForUpdates } from './config'
 import { corsMiddleware } from './middleware/cors'
+import { baseRoutes } from './routes/base'
 import { proxyRoutes } from './routes/proxy'
 import { healthRoutes } from './routes/health'
 import { managementRoutes } from './routes/management'
+import { versionRoutes } from './routes/version'
 import { logger } from './utils/logger'
-import { UnderPressure } from './services/up'
 
-// Initialize config once at startup
-const config = getConfig()
+// Check for updates before starting the server
+console.log('Checking for ByteProxy updates...')
+;(async (): Promise<void> => {
+    try {
+        // Only perform the check if not in development mode
+        const env = process.env.NODE_ENV?.toLowerCase() || 'local'
+        const skipUpdateCheck = env === 'dev' || env === 'development' || process.env.SKIP_UPDATE_CHECK === 'true'
 
-// Initialize UnderPressure with desired options
-const underPressure = new UnderPressure({
-    maxEventLoopDelay: 250, // ms
-    maxHeapUsedBytes: 512 * 1024 * 1024, // 512MB
-    maxRssBytes: 1024 * 1024 * 1024, // 1GB
-    maxEventLoopUtilization: 0.98,
-    sampleInterval: 1000
-})
+        if (skipUpdateCheck) {
+            console.log(
+                '\x1b[33m%s\x1b[0m',
+                '⚠️ Update check skipped in development mode or due to SKIP_UPDATE_CHECK=true'
+            )
+        } else {
+            const updateInfo = await checkForUpdates()
 
-new Elysia()
-    .use(corsMiddleware)
-    .get('/up', () => {
-        return {
-            status: 'ok',
-            ...underPressure.getStatus()
-        }
-    })
-
-    .onRequest(({ set }) => {
-        const pressure = underPressure.checkPressure()
-        if (pressure) {
-            set.status = 503
-            return {
-                error: 'Server under pressure',
-                type: pressure.type,
-                value: pressure.value,
-                message: pressure.error?.message || 'Service Unavailable'
+            if (updateInfo.updateAvailable) {
+                console.error('\x1b[31m%s\x1b[0m', '❌ UPDATE REQUIRED')
+                console.error('\x1b[31m%s\x1b[0m', `Your ByteProxy version (${updateInfo.currentVersion}) is outdated.`)
+                console.error('\x1b[31m%s\x1b[0m', `Latest version: ${updateInfo.latestVersion}`)
+                console.error('\x1b[31m%s\x1b[0m', `Please update from: ${updateInfo.latestReleaseUrl}`)
+                console.error('\x1b[31m%s\x1b[0m', 'Server startup aborted.')
+                console.error(
+                    '\x1b[31m%s\x1b[0m',
+                    'To bypass this check, set SKIP_UPDATE_CHECK=true in your environment variables.'
+                )
+                process.exit(1)
             }
-        }
-    })
 
-    // Global error handler
-    .onError(({ code, error, set, request }) => {
-        const url = new URL(request.url)
-        const path = url.pathname
-
-        logger.error(`Error ${code} on ${path}`, {
-            code,
-            error: error instanceof Error ? error.message : String(error),
-            path,
-            method: request.method
-        })
-
-        if (code === 'VALIDATION') {
-            set.status = 400
-            return {
-                error: 'Invalid request format',
-                message: 'Please check the API documentation for correct usage',
-                documentation: '/docs',
-                hint: 'Try visiting /docs for examples of how to use the proxy endpoints'
-            }
+            console.log('\x1b[32m%s\x1b[0m', '✅ Running latest version of ByteProxy!')
         }
 
-        // Handle 404 errors
-        if (code === 'NOT_FOUND') {
-            set.status = 404
-            return {
-                error: 'Endpoint not found',
-                message: `The endpoint '${path}' does not exist`,
-                documentation: '/docs',
-                availableEndpoints: [
-                    '/docs - API Documentation',
-                    '/health - Health Check',
-                    '/status - Detailed Status',
-                    '/proxy/:service/* - Proxy requests to services',
-                    '/manage/services - Service management'
-                ]
-            }
-        }
+        // Initialize config once at startup
+        const config = getConfig()
+        const appVersion = getAppVersion()
 
-        // Handle other errors
-        set.status = 500
-        return {
-            error: 'Internal server error',
-            message: error instanceof Error ? error.message : String(error) || 'An unexpected error occurred',
-            documentation: '/docs'
-        }
-    })
+        new Elysia()
+            .use(corsMiddleware)
+            .use(baseRoutes)
+            .use(healthRoutes)
+            .use(proxyRoutes)
+            .use(managementRoutes)
+            .use(versionRoutes)
+            .use(
+                swagger({
+                    path: '/docs',
+                    documentation: {
+                        info: {
+                            title: 'ByteProxy',
+                            version: appVersion.replace('v', ''), // Use the version from config
+                            description:
+                                'Extensible web proxy for Discord, GitHub, and other APIs. Provides rate limiting, authentication handling, and easy service management.'
+                        },
+                        tags: [
+                            {
+                                name: 'Base',
+                                description:
+                                    'Core endpoints providing general information, version details, and API root access'
+                            },
+                            {
+                                name: 'Health',
+                                description:
+                                    'Health check endpoints for monitoring service status and performance metrics'
+                            },
+                            {
+                                name: 'Proxy',
+                                description:
+                                    'Endpoints for proxying requests to third-party services with authentication and rate limiting'
+                            },
+                            {
+                                name: 'Debug',
+                                description:
+                                    'Development and troubleshooting endpoints to inspect request/response data and test connections'
+                            },
+                            {
+                                name: 'Management',
+                                description:
+                                    'Service configuration endpoints for adding, removing, and managing available proxy targets'
+                            },
+                            {
+                                name: 'Diagnostics',
+                                description:
+                                    'System diagnostics showing resource usage, performance data, and operational metrics'
+                            }
+                        ],
+                        components: {
+                            securitySchemes: {
+                                apiKey: {
+                                    type: 'apiKey',
+                                    name: 'x-api-key',
+                                    description: 'Your Proxy or Management API Key',
+                                    in: 'header'
+                                },
+                                bearerAuth: {
+                                    type: 'http',
+                                    scheme: 'bearer',
+                                    bearerFormat: 'API Key',
+                                    description: 'Your Proxy or Management API Key'
+                                },
+                                queryParam: {
+                                    type: 'apiKey',
+                                    name: 'api_key',
+                                    description: 'Your Proxy or Management API Key',
+                                    in: 'query'
+                                }
+                            }
+                        },
+                        security: [{ bearerAuth: [] }]
+                    }
+                })
+            )
+            .listen(config.port)
 
-    .use(
-        swagger({
-            path: '/docs',
-            documentation: {
-                info: {
-                    title: 'ByteProxy',
-                    version: '0.1.0',
-                    description: 'Extensible web proxy for Discord, GitHub, and other APIs. Provides rate limiting, authentication handling, and easy service management.'
-                }
-            }
-        })
-    )
-    .use(healthRoutes)
-    .use(proxyRoutes)
-    .use(managementRoutes)
-    .get('/', () => ({
-        message: 'ByteProxy API',
-        version: '0.1.0',
-        documentation: '/docs',
-        health: '/health',
-        status: '/status'
-    }))
+        logger.info(`🚀 ByteProxy (${appVersion}) started on port: ${config.port}`)
+        logger.debug(`📚 API Documentation: http://localhost:${config.port}/docs`)
+        logger.debug(`💚 Health Check: http://localhost:${config.port}/health`)
+    } catch (error) {
+        console.error('\x1b[31m%s\x1b[0m', '❌ Error checking for updates:')
+        console.error(error)
+        console.error('\x1b[31m%s\x1b[0m', 'Starting server anyway...')
 
-    .all('*', ({ set, request }) => {
-        const url = new URL(request.url)
-        const path = url.pathname
+        // Initialize config and start server despite update check failure
+        const config = getConfig()
+        const appVersion = getAppVersion()
 
-        logger.warn(`Unknown endpoint accessed: ${path}`, {
-            path,
-            method: request.method,
-            userAgent: request.headers.get('user-agent')
-        })
+        new Elysia()
+            .use(corsMiddleware)
+            .use(baseRoutes)
+            .use(healthRoutes)
+            .use(proxyRoutes)
+            .use(managementRoutes)
+            .use(versionRoutes)
+            .use(
+                swagger({
+                    path: '/docs',
+                    documentation: {
+                        info: {
+                            title: 'ByteProxy',
+                            version: appVersion.replace('v', ''), // Use the version from config
+                            description:
+                                'Extensible web proxy for Discord, GitHub, and other APIs. Provides rate limiting, authentication handling, and easy service management.'
+                        },
+                        tags: [
+                            {
+                                name: 'Base',
+                                description:
+                                    'Core endpoints providing general information, version details, and API root access'
+                            },
+                            {
+                                name: 'Health',
+                                description:
+                                    'Health check endpoints for monitoring service status and performance metrics'
+                            },
+                            {
+                                name: 'Proxy',
+                                description:
+                                    'Endpoints for proxying requests to third-party services with authentication and rate limiting'
+                            },
+                            {
+                                name: 'Debug',
+                                description:
+                                    'Development and troubleshooting endpoints to inspect request/response data and test connections'
+                            },
+                            {
+                                name: 'Management',
+                                description:
+                                    'Service configuration endpoints for adding, removing, and managing available proxy targets'
+                            },
+                            {
+                                name: 'Diagnostics',
+                                description:
+                                    'System diagnostics showing resource usage, performance data, and operational metrics'
+                            }
+                        ],
+                        components: {
+                            securitySchemes: {
+                                apiKey: {
+                                    type: 'apiKey',
+                                    name: 'x-api-key',
+                                    description: 'Your Proxy or Management API Key',
+                                    in: 'header'
+                                },
+                                bearerAuth: {
+                                    type: 'http',
+                                    scheme: 'bearer',
+                                    bearerFormat: 'API Key',
+                                    description: 'Your Proxy or Management API Key'
+                                },
+                                queryParam: {
+                                    type: 'apiKey',
+                                    name: 'api_key',
+                                    description: 'Your Proxy or Management API Key',
+                                    in: 'query'
+                                }
+                            }
+                        },
+                        security: [{ bearerAuth: [] }]
+                    }
+                })
+            )
+            .listen(config.port)
 
-        set.status = 404
-        return {
-            error: 'Endpoint not found',
-            message: `The endpoint '${path}' does not exist`,
-            suggestion: 'Check the API documentation for available endpoints',
-            documentation: {
-                url: '/docs',
-                description: 'Interactive API documentation with examples'
-            },
-            quickStart: {
-                proxy: '/proxy/:service/*',
-                health: '/health',
-                management: '/manage/services'
-            }
-        }
-    })
-
-    .listen(config.port)
-
-logger.info(`ByteProxy server started`, {
-    url: `http://localhost:${config.port}`,
-    docs: `http://localhost:${config.port}/docs`,
-    health: `http://localhost:${config.port}/health`,
-    cors: config.cors.enabled ? `enabled [${config.cors.origins.join(', ')}]` : 'disabled',
-    logging: config.logging.enabled ? config.logging.level : 'disabled',
-    tlsVerification: config.network.strictTLS ? 'strict' : 'NOT strict',
-    retryAttempts: config.network.retryAttempts,
-    timeout: `${config.network.timeout}ms`,
-    proxyAuth: `${config.security.requireAuthForProxy}${!config.security.proxyApiKey ? ' (NO KEY SET)' : ''}`,
-    managementAuth: `${config.security.requireAuthForManagement}${!config.security.managementApiKey ? ' (NO KEY SET)' : ''}`
-})
+        logger.info(`🚀 ByteProxy (${appVersion}) started on port: ${config.port}`)
+        logger.debug(`📚 API Documentation: http://localhost:${config.port}/docs`)
+        logger.debug(`💚 Health Check: http://localhost:${config.port}/health`)
+    }
+})()

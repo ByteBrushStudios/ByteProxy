@@ -13,13 +13,13 @@
     "author": "Pixelated <https://codemeapixel.dev>",
     "scripts": {
         "build": "tsc",
-        "dev": "bun run --watch src/index.ts",
+        "dev": "cross-env NODE_ENV=dev bun run --watch src/index.ts",
         "format": "prettier --check .",
         "format:fix": "prettier --write .",
         "lint": "eslint . --ext .ts",
         "lint:fix": "eslint . --ext .ts --fix",
-        "start": "bun run dist/index.js",
-        "prepare": "husky"
+        "prepare": "husky",
+        "start": "cross-env NODE_ENV=prod bun run dist/index.js"
     },
     "lint-staged": {
         "*.{js,jsx,ts,tsx}": [
@@ -36,17 +36,19 @@
     "dependencies": {
         "@elysiajs/swagger": "^1.2.0",
         "elysia": "^1.2.12",
+        "undici": "^7.10.0",
         "ws": "^8.18.2"
     },
     "devDependencies": {
-        "@types/node": "^22.15.18",
-        "@types/ws": "^8.18.1",
         "@commitlint/cli": "^19.6.1",
         "@commitlint/config-conventional": "^19.6.0",
+        "@types/node": "^22.15.18",
+        "@types/ws": "^8.18.1",
         "@typescript-eslint/eslint-plugin": "^6.0.0",
         "@typescript-eslint/parser": "^6.0.0",
         "bun-types": "^1.0.1",
         "commitlint": "^19.6.1",
+        "cross-env": "^7.0.3",
         "eslint": "^8.0.0",
         "eslint-plugin-prettier": "^5.0.0",
         "husky": "^9.1.7",

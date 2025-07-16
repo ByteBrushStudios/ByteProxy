@@ -1,3 +1,7 @@
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import { fetch } from 'undici'
+
 export interface ServiceConfig {
     id?: string
     name: string
@@ -39,7 +43,17 @@ export interface ProxyConfig {
     }
 }
 
-let serviceRegistry: Record<string, ServiceConfig> = {
+// Load package version once at startup
+let packageVersion: string
+try {
+    const pkgPath = join(__dirname, '../../package.json')
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+    packageVersion = pkg.version || '0.1.0'
+} catch {
+    packageVersion = '0.1.0'
+}
+
+const serviceRegistry: Record<string, ServiceConfig> = {
     discord: {
         id: 'discord',
         name: 'Discord API',
@@ -49,7 +63,7 @@ let serviceRegistry: Record<string, ServiceConfig> = {
             v9: 'https://discord.com/api/v9/'
         },
         headers: {
-            'User-Agent': 'DiscordBot (https://github.com/ByteBrushStudios/ByteProxy, 0.1.0)',
+            'User-Agent': `DiscordBot (https://github.com/ByteBrushStudios/ByteProxy, ${packageVersion})`,
             'Content-Type': 'application/json'
         },
         rateLimit: {
@@ -66,7 +80,7 @@ let serviceRegistry: Record<string, ServiceConfig> = {
         name: 'GitHub API',
         baseUrl: 'https://api.github.com/',
         headers: {
-            'User-Agent': 'ByteProxy/0.1.0',
+            'User-Agent': `ByteProxy/${packageVersion}`,
             'Accept': 'application/vnd.github+json',
             'X-GitHub-Api-Version': '2022-11-28'
         },
@@ -82,12 +96,12 @@ let serviceRegistry: Record<string, ServiceConfig> = {
 }
 
 // Add a cached config to avoid recomputing and logging on every call
-let cachedConfig: ProxyConfig | null = null;
+let cachedConfig: ProxyConfig | null = null
 
 export const getConfig = (): ProxyConfig => {
     // Return cached config if available
     if (cachedConfig) {
-        return cachedConfig;
+        return cachedConfig
     }
 
     const config: ProxyConfig = {
@@ -112,17 +126,17 @@ export const getConfig = (): ProxyConfig => {
             requireAuthForProxy: process.env.REQUIRE_AUTH_FOR_PROXY === 'true',
             requireAuthForManagement: process.env.REQUIRE_AUTH_FOR_MANAGEMENT === 'true'
         }
-    };
+    }
 
     // Store the config in cache
-    cachedConfig = config;
+    cachedConfig = config
 
-    return config;
-};
+    return config
+}
 
 // Function to reset the config cache (useful for testing or after env changes)
 export const resetConfigCache = (): void => {
-    cachedConfig = null;
+    cachedConfig = null
 }
 
 // Resolve a token from a service config's tokenEnvVar
@@ -152,4 +166,147 @@ export const getServiceConfig = (service: string): ServiceConfig | undefined => 
 // List all registered services
 export const listServices = (): string[] => {
     return Object.keys(serviceRegistry)
+}
+
+/**
+ * Determines the current environment based on NODE_ENV
+ * @returns Environment name (prod, dev, test, or local)
+ */
+export function determineEnvironment(): string {
+    const env = process.env.NODE_ENV?.toLowerCase() || 'local'
+    if (['production', 'prod'].includes(env)) return 'prod'
+    if (['development', 'dev'].includes(env)) return 'dev'
+    return 'local'
+}
+
+/**
+ * Gets the version from package.json with optional environment info.
+ * Returns a clean version string for production (v1.0.0) and
+ * environment-tagged version for non-production (v1.0.0-dev)
+ */
+export function getAppVersion(): string {
+    // Read version from package.json
+    let version = 'unknown'
+    try {
+        const pkgPath = join(__dirname, '../../package.json')
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+        version = pkg.version || version
+    } catch {
+        // ignore
+    }
+
+    // Get current environment
+    const env = determineEnvironment()
+
+    // Format version string: v1.0.0 for prod, v1.0.0-env for non-prod
+    const formattedVersion = env === 'prod' ? `v${version}` : `v${version}-${env}`
+
+    return formattedVersion
+}
+
+interface GitHubRelease {
+    tag_name: string
+    name: string
+    published_at: string
+    html_url: string
+    prerelease: boolean
+}
+
+/**
+ * Checks for the latest release on GitHub and compares with current version
+ * @param owner The GitHub repository owner
+ * @param repo The GitHub repository name
+ * @returns Object with version comparison information
+ */
+export async function checkForUpdates(
+    owner = 'ByteBrushStudios',
+    repo = 'ByteProxy'
+): Promise<{
+    currentVersion: string
+    latestVersion: string | null
+    latestReleaseUrl: string | null
+    isLatest: boolean
+    isPrerelease: boolean
+    releaseDate: string | null
+    updateAvailable: boolean
+}> {
+    const currentVersion = getAppVersion()
+    const currentSemver = currentVersion.split('-')[0].replace('v', '')
+
+    try {
+        // Fetch latest release from GitHub API
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
+            headers: {
+                'Accept': 'application/vnd.github+json',
+                'User-Agent': 'ByteProxy-UpdateChecker/1.0'
+            }
+        })
+
+        if (!response.ok) {
+            throw new Error(`GitHub API responded with status: ${response.status}`)
+        }
+
+        const releases = (await response.json()) as GitHubRelease[]
+
+        if (!releases || releases.length === 0) {
+            return {
+                currentVersion,
+                latestVersion: null,
+                latestReleaseUrl: null,
+                isLatest: true,
+                isPrerelease: false,
+                releaseDate: null,
+                updateAvailable: false
+            }
+        }
+
+        // Find the latest non-prerelease version
+        const stableReleases = releases.filter(r => !r.prerelease)
+        const latestRelease = stableReleases.length > 0 ? stableReleases[0] : releases[0]
+        const latestVersion = latestRelease.tag_name.replace('v', '')
+
+        // Simple semver comparison - could be enhanced for more complex versions
+        const updateAvailable = compareVersions(currentSemver, latestVersion) < 0
+
+        return {
+            currentVersion,
+            latestVersion: latestRelease.tag_name,
+            latestReleaseUrl: latestRelease.html_url,
+            isLatest: !updateAvailable,
+            isPrerelease: latestRelease.prerelease,
+            releaseDate: latestRelease.published_at,
+            updateAvailable
+        }
+    } catch (error) {
+        console.error('Failed to check for updates:', error)
+        return {
+            currentVersion,
+            latestVersion: null,
+            latestReleaseUrl: null,
+            isLatest: true,
+            isPrerelease: false,
+            releaseDate: null,
+            updateAvailable: false
+        }
+    }
+}
+
+/**
+ * Simple semver comparison utility
+ * @returns negative if v1 < v2, positive if v1 > v2, 0 if equal
+ */
+function compareVersions(v1: string, v2: string): number {
+    const v1Parts = v1.split('.').map(Number)
+    const v2Parts = v2.split('.').map(Number)
+
+    for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
+        const v1Part = v1Parts[i] || 0
+        const v2Part = v2Parts[i] || 0
+
+        if (v1Part !== v2Part) {
+            return v1Part - v2Part
+        }
+    }
+
+    return 0
 }
